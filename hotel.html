@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TranquillaMente - Hotel</title>
+  <!-- CSS invariato dalla versione precedente -->
+  <style>
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, #a8e2dc 0%, #2bb3a0 100%); padding: 20px; min-height: 100vh; margin: 0;}
+    .container { max-width: 1200px; margin: 0 auto;}
+    .header { text-align: center; margin-bottom: 30px; color: white;}
+    .header h1 {font-size: 2.5rem; margin-bottom: 10px; text-shadow: 2px 2px 4px rgba(0,0,0,0.2);}
+    .search-box {background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); margin-bottom: 30px;}
+    .search-input {width: 100%; padding: 15px; font-size: 1rem; border: 2px solid #2bb3a0; border-radius: 10px; outline: none; transition: all 0.3s;}
+    .search-input:focus {border-color: #2c6e8f; box-shadow: 0 0 10px rgba(43, 179, 160, 0.3);}
+    .cards-grid {display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 25px; margin-bottom: 30px;}
+    .card {background: white; border-radius: 20px; overflow: hidden; box-shadow: 0 2px 12px rgba(56, 101, 103, 0.15); transition: transform 0.2s; display: flex; flex-direction: column;}
+    .card:hover {transform: translateY(-8px) scale(1.02);}
+    .card-image img {width: 100%; height: 200px; object-fit: cover; display: block;}
+    .card-content {padding: 18px; flex: 1; display: flex; flex-direction: column; justify-content: space-between;}
+    .card-title { font-size: 1.4rem; margin: 0 0 6px 0; font-weight: bold; color: #23484e; line-height: 1.22;}
+    .rating {margin-bottom: 8px;}
+    .star {color: #f7b731; font-size: 1.2rem; margin-right: 2px;}
+    .star.empty {color: #dfdfdf;}
+    .card-info {margin: 3px 0; color: #2c6e8f; font-size: 1rem; display: flex; align-items: center; gap: 6px;}
+    .card-description {color: #444; font-size: 1rem; margin-top: 8px; margin-bottom: 0;}
+    .no-results {text-align: center; color: #2c6e8f; font-size: 1.1rem; margin-top: 40px;}
+    @media (max-width:600px) {.cards-grid {grid-template-columns: 1fr;}}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Strutture Hotel - TranquillaMente</h1>
+      <p>Consulta, cerca e valuta le strutture segnalate dagli utenti</p>
+    </div>
+    <div class="search-box">
+      <input id="searchInput" class="search-input" type="text" placeholder="Cerca nome, città o indirizzo...">
+    </div>
+    <div id="cardsContainer" class="cards-grid"></div>
+  </div>
+  <script>
+    // URL della tua Google Apps Script API
+    const API_URL = "https://script.google.com/macros/s/AKfycby4GUUV1bmluKBffzOIH1f9J-7-OmvNA2E2gm8onPwcVuzwOTTirXA5mvo_N1XPKT3d/exec";
+    let allData = [];
+
+    function createStars(rating) {
+      let stars = "";
+      const numRating = parseInt(rating) || 0;
+      for (let i = 1; i <= 5; i++) {
+        if (i <= numRating) {
+          stars += '<span class="star">&#9733;</span>';
+        } else {
+          stars += '<span class="star empty">&#9733;</span>';
+        }
+      }
+      return stars;
+    }
+
+    function createCard(data) {
+      const nome = data["Nome struttura"] || "Nome non disponibile";
+      const comfort = data["Quanto comfort sensoriale hai riscontrato?"] || "0";
+      const indirizzo = data["Indirizzo"] || "Indirizzo non disponibile";
+      const città = data["Città"] || "Città non disponibile";
+      const telefono = data["Telefono"] || "Non disponibile";
+      const recensione = data["Recensione/Commento"] || "";
+      const fotoUrl = data["Foto"];
+      const imageHTML = fotoUrl && fotoUrl !== "" && fotoUrl !== undefined ?
+        `<div class="card-image"><img src="${fotoUrl}" alt="${nome}" onerror="this.parentElement.innerHTML=''"/></div>`
+        : `<div class="card-image"></div>`;
+
+      return `
+        <div class="card">
+          ${imageHTML}
+          <div class="card-content">
+            <h2 class="card-title">${nome}</h2>
+            <div class="card-info"><strong>${città}</strong></div>
+            <div class="rating">${createStars(comfort)}</div>
+            <div class="card-info"><span>${indirizzo}</span></div>
+            <div class="card-info"><span>${telefono}</span></div>
+            ${recensione ? `<div class="card-description">${recensione}</div>` : ""}
+          </div>
+        </div>`;
+    }
+
+    function displayCards(data) {
+      const container = document.getElementById("cardsContainer");
+      if (!data || data.length === 0) {
+        container.innerHTML = '<div class="no-results">Nessuna struttura trovata</div>';
+        return;
+      }
+      container.innerHTML = data.map(row => createCard(row)).join("");
+    }
+
+    function filterCards(searchTerm) {
+      const filtered = allData.filter((row) => {
+        const nome = (row["Nome struttura"] || "").toLowerCase();
+        const città = (row["Città"] || "").toLowerCase();
+        const indirizzo = (row["Indirizzo"] || "").toLowerCase();
+        const comment = (row["Recensione/Commento"] || "").toLowerCase();
+        const term = searchTerm.toLowerCase();
+        return nome.includes(term) || città.includes(term) || indirizzo.includes(term) || comment.includes(term);
+      });
+      displayCards(filtered);
+    }
+
+    async function loadData() {
+      try {
+        const response = await fetch(API_URL);
+        const data = await response.json();
+        allData = data;
+        displayCards(allData);
+      } catch (error) {
+        console.error("Errore nel caricamento", error);
+        document.getElementById("cardsContainer").innerHTML =
+          '<div class="no-results">Errore nel caricamento dei dati<br>Riprova più tardi</div>';
+      }
+    }
+
+    document.getElementById("searchInput").addEventListener("input", (e) => filterCards(e.target.value));
+    loadData();
+  </script>
+</body>
+</html>
